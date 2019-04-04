@@ -1,4 +1,5 @@
 require "whence/version"
+require "set"
 
 module Whence
   def self.whence
@@ -11,9 +12,8 @@ module Whence
   def self.tree
     g = Graph.new($callers.length)
     $callers.each do |trace|
-      trace.reverse_each.inject(g) do |memo, trace_line|
-        location, name = trace[0].split("in: ")
-        Vertex.new(location, name).tap do |child|
+      trace.each.inject(g) do |memo, location|
+        Vertex.new(location).tap do |child|
           memo << child
         end
       end
@@ -35,8 +35,8 @@ module Whence
   class Vertex
     attr_reader :location, :name
 
-    def initialize(location, name)
-      @location, @name = location, name
+    def initialize(location)
+      @location = location
       @edges = Edges.new
     end
 
@@ -44,34 +44,21 @@ module Whence
       @edges << vertex
     end
 
-# func (n Node) Print(leaders []string) {
-#   for i, part := range keys {
-#     for _, l := range leaders {
-#       fmt.Print(l)
-#     }
-#     if i == len(keys)-1 {
-#       fmt.Printf("%s %s\n", "└──", part)
-#       n[part].Print(append(leaders, "    "))
-#     } else {
-#       fmt.Printf("%s %s\n", "├──", part)
-#       n[part].Print(append(leaders, "│   "))
-#     }
-#   }
-# }
     def to_s(weight, last = true, indent = [])
-      my_indent = indent
-      child_indent = indent
+      my_indent = indent.dup
+      child_indent = indent.dup
       if last
-        my_indent.append("└── ")
-        child_indent.append("    ")
+        my_indent.append("└")
+        child_indent.append("  ")
       else
-        my_indent.append("├── ")
-        child_indent.append("│   ")
+        my_indent.append("├")
+        child_indent.append("│ ")
       end
-      my_indent.join + "#{location} #{weight}\n" +
+
+      my_indent.join + " #{location} #{weight}\n" +
         @edges.each_with_index.map do |vertex_and_weight, i|
-        vertex, weight = *vertex_and_weight
-        vertex.to_s(weight, i == @edges.count - 1, child_indent)
+          vertex, weight = *vertex_and_weight
+          vertex.to_s(weight, i == @edges.count - 1, child_indent)
       end.join
     end
   end
@@ -83,8 +70,11 @@ module Whence
     end
 
     def <<(vertex)
-      __setobj__(vertex) unless __getobj__
-      super
+      if __getobj__
+        super
+      else
+        __setobj__(vertex)
+      end
     end
 
     def to_s
